@@ -3,11 +3,5 @@
 
 # Except this
 !.gitignore
-!LabWork1.cpp
-!Server.h
-!Server.cpp
-!Client.h
-!Client.cpp
-!stdafx.h
-!stdafx.cpp
-!targetver.h
+!*.h
+!*.cpp
