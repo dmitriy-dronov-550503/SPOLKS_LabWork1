@@ -66,9 +66,10 @@ void Server::ClientSession(socket_ptr sock)
 			}
 		}
 	}
-	catch (boost::system::system_error e)
+	catch (boost::system::system_error &e)
 	{
-		cout << "Server caught exception in client session: " << e.code() << endl;
+	    error_code ec = e.code();
+	    cout << "[" << currentDateTime() << "] : Exception caught in client session " << ec.value() << " " << ec.category().name() << endl;
 	}
 }
 
