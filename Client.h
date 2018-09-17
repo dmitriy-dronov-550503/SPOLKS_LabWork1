@@ -1,8 +1,8 @@
 #pragma once
 #include <iostream>
-#include <boost\asio.hpp>
-#include <boost\thread.hpp>
-#include <boost\bind.hpp>
+#include <boost/asio.hpp>
+#include <boost/thread.hpp>
+#include <boost/bind.hpp>
 
 using namespace std;
 using namespace boost::asio;
