@@ -25,6 +25,10 @@ void Server::ServerThread()
 	while (true)
 	{
 		socket_ptr sock(new ip::tcp::socket(service));
+		
+		boost::asio::socket_base::keep_alive option(true);
+		sock->set_option(option);
+		
 		acc.accept(*sock);
 		ClientSession(sock);
 	}
