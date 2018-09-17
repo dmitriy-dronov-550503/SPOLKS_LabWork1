@@ -1,6 +1,15 @@
 #include "stdafx.h"
 #include "Server.h"
 
+const std::string currentDateTime() {
+	time_t     now = time(0);
+	struct tm  tstruct;
+	char       buf[80];
+	localtime_s(&tstruct, &now);
+	strftime(buf, sizeof(buf), "%Y-%m-%d %X", &tstruct);
+
+	return buf;
+}
 
 Server::Server()
 {
@@ -22,23 +31,32 @@ void Server::ServerThread()
 	ip::tcp::endpoint ep(ip::tcp::v4(), 2001); // listen on 2001
 	ip::tcp::acceptor acc(service, ep);
 
-	while (true)
+	try
 	{
-		socket_ptr sock(new ip::tcp::socket(service));
-		acc.accept(*sock);
-		ClientSession(sock);
+
+		while (true)
+		{
+			socket_ptr sock(new ip::tcp::socket(service));
+
+			acc.accept(*sock);
+
+			boost::asio::socket_base::keep_alive keepAlive(true);
+			sock->set_option(keepAlive);
+
+			cout << "[" << currentDateTime() << "] : Accept client " << endl;
+
+			ClientSession(sock);
+		}
+
+	}
+	catch (boost::system::system_error &e)
+	{
+		error_code ec = e.code();
+		cout << "[" << currentDateTime() << "] : Exception caught in initialization " << ec.value() << " " << ec.category().name() << " "  << ec.message() << endl;
 	}
 }
 
-const std::string currentDateTime() {
-	time_t     now = time(0);
-	struct tm  tstruct;
-	char       buf[80];
-	localtime_s(&tstruct, &now);
-	strftime(buf, sizeof(buf), "%Y-%m-%d %X", &tstruct);
 
-	return buf;
-}
 
 void Server::ClientSession(socket_ptr sock)
 {
@@ -62,9 +80,20 @@ void Server::ClientSession(socket_ptr sock)
 			}
 		}
 	}
-	catch (boost::system::system_error e)
+	catch (boost::system::system_error &e)
 	{
-		cout << "Server caught exception in client session: " << e.code() << endl;
+	    error_code ec = e.code();
+
+		switch (ec.value())
+		{
+		case 2:
+			cout << "[" << currentDateTime() << "] : Client closed connection" << endl;
+			break;
+		default:
+			cout << "[" << currentDateTime() << "] : Exception: " << ec.message() << endl;
+			break;
+		}
+
 	}
 }
 
