@@ -23,12 +23,15 @@ public:
 
 	void Join();
 
-	static void ClientSession(socket_ptr sock);
+	static void ClientSession(socket_ptr sock, bool& isServerActive);
 
 	static void ParseCommand(socket_ptr sock, string command);
 
 	static void CmdEcho(socket_ptr sock, vector<string> cmds);
 
 	static void CmdTime(socket_ptr sock, vector<string> cmds);
+
+	static void CmdReceiveFile(socket_ptr sock, vector<string> cmds);
+
 };
 

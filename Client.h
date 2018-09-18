@@ -14,6 +14,7 @@ class Client
 private:
 	thread* clientThread;
 	static void ClientThread(string ipAddress);
+	static void UploadFile(socket_ptr sock);
 
 public:
 	Client(string ipAddress = "127.0.0.1");

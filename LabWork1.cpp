@@ -10,21 +10,6 @@ using namespace std;
 	
 int main(int argc, char* argv[])
 {
-#if 0
-	CommandCenter commandCenter;
-
-	while (true)
-	{
-		cout << endl << "> ";
-		string cmd;
-		getline(cin, cmd);
-
-		if (cmd == "exit") break;
-
-		cout << commandCenter.Request(cmd);
-	}
-
-#else
 	if (argc == 1)
 	{
 		cout << "Start server and client" << endl;
@@ -61,8 +46,6 @@ int main(int argc, char* argv[])
 			
 		}
 	}
-
-#endif
 
 	system("pause");
 

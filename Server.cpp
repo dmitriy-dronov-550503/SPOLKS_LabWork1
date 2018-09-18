@@ -1,15 +1,6 @@
 #include "stdafx.h"
 #include "Server.h"
-
-const std::string currentDateTime() {
-	time_t     now = time(0);
-	struct tm  tstruct;
-	char       buf[80];
-	localtime_s(&tstruct, &now);
-	strftime(buf, sizeof(buf), "%Y-%m-%d %X", &tstruct);
-
-	return buf;
-}
+#include "LogSystem.h"
 
 Server::Server()
 {
@@ -31,10 +22,12 @@ void Server::ServerThread()
 	ip::tcp::endpoint ep(ip::tcp::v4(), 2001); // listen on 2001
 	ip::tcp::acceptor acc(service, ep);
 
+	bool isServerActive = true;
+
 	try
 	{
 
-		while (true)
+		while (isServerActive)
 		{
 			socket_ptr sock(new ip::tcp::socket(service));
 
@@ -43,22 +36,22 @@ void Server::ServerThread()
 			boost::asio::socket_base::keep_alive keepAlive(true);
 			sock->set_option(keepAlive);
 
-			cout << "[" << currentDateTime() << "] : Accept client " << endl;
+			LogSystem::Log("Accept client");
 
-			ClientSession(sock);
+			ClientSession(sock, isServerActive);
 		}
 
 	}
 	catch (boost::system::system_error &e)
 	{
 		error_code ec = e.code();
-		cout << "[" << currentDateTime() << "] : Exception caught in initialization " << ec.value() << " " << ec.category().name() << " "  << ec.message() << endl;
+		cout << LogSystem::CurrentDateTime() << "Exception caught in initialization " << ec.value() << " " << ec.category().name() << " " << ec.message();
 	}
 }
 
 
 
-void Server::ClientSession(socket_ptr sock)
+void Server::ClientSession(socket_ptr sock, bool& isServerActive)
 {
 	try
 	{
@@ -70,7 +63,7 @@ void Server::ClientSession(socket_ptr sock)
 
 			if (len > 0)
 			{
-				cout << "[" << currentDateTime() << "] : got request > " << data << endl;
+				LogSystem::Log("Got request > " + string(data));
 
 				ParseCommand(sock, string(data));
 			}
@@ -87,10 +80,11 @@ void Server::ClientSession(socket_ptr sock)
 		switch (ec.value())
 		{
 		case 2:
-			cout << "[" << currentDateTime() << "] : Client closed connection" << endl;
+			LogSystem::Log("Client closed connection");
+			isServerActive = false;
 			break;
 		default:
-			cout << "[" << currentDateTime() << "] : Exception: " << ec.message() << endl;
+			LogSystem::Log("Exception: " + ec.message());
 			break;
 		}
 
@@ -108,6 +102,10 @@ void Server::ParseCommand(socket_ptr sock, string command)
 	else if (cmds[0] == "time")
 	{
 		CmdTime(sock, cmds);
+	}
+	else if (cmds[0] == "upload")
+	{
+		CmdReceiveFile(sock, cmds);
 	}
 	else
 	{
@@ -133,7 +131,20 @@ void Server::CmdTime(socket_ptr sock, vector<string> cmds)
 {
 	char outputBuffer[512];
 
-	strcpy_s(outputBuffer, currentDateTime().c_str());
+	strcpy_s(outputBuffer, LogSystem::CurrentDateTime().c_str());
 
 	write(*sock, buffer(outputBuffer));
+}
+
+void Server::CmdReceiveFile(socket_ptr sock, vector<string> cmds)
+{
+	char data[512];
+
+	sock->write_some(buffer("I'AM READY"));
+
+	sock->read_some(buffer(data));
+
+	cout << "Get: " << data << endl;
+
+	write(*sock, buffer("\r\n"));
 }
