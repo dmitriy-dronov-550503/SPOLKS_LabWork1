@@ -231,7 +231,7 @@ void Server::CmdSendFile(socket_ptr sock, vector<string> argv)
 		ifstream fileEnd(argv[1], std::ifstream::ate | std::ifstream::binary);
 		string fileSize = std::to_string(fileEnd.tellg());
 		strcpy_s(data, bufferSize, fileSize.c_str());
-		sock->write_some(buffer(data, bufferSize));
+		sock->write_some(buffer(data, strlen(data) + 1));
 		cout << "Filesize = " << fileSize << endl;
 
 		// Send file content
