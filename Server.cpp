@@ -141,9 +141,9 @@ void Server::CmdTime(socket_ptr sock, vector<string> cmds)
 
 void Server::CmdReceiveFile(socket_ptr sock, vector<string> cmds)
 {
-	const uint32_t bufferSize = 20 * 1024;
+	const uint32_t bufferSize = 20 * 1024 * 1024;
 	char* data;
-	data = new char[bufferSize];
+	data = new char[bufferSize + 1];
 
 	sock->write_some(buffer("I'AM READY"));
 
@@ -164,21 +164,14 @@ void Server::CmdReceiveFile(socket_ptr sock, vector<string> cmds)
 		while (true)
 		{
 			// Get packet
-			sock->read_some(buffer(data, bufferSize));
+			size_t readedSize = sock->read_some(buffer(data, bufferSize));
 
-			uint32_t packetSize = *((uint32_t*)data);
-			char* payload = data + 4;
-
-			if (packetSize == 0)
+			if(readedSize == 0)
 			{
 				break;
 			}
 
-			//cout << "Get packet with size " << packetSize << endl;
-
-			myfile.write(payload, packetSize);
-
-			sock->write_some(buffer("GOT"));
+			myfile.write(data, readedSize);
 		}
 
 		myfile.close();

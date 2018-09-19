@@ -27,13 +27,17 @@ void Client::ClientThread(string ipAddress)
 	io_service service;
 	ip::tcp::endpoint ep(ip::address::from_string(ipAddress.c_str()), 2001);
 	socket_ptr sock(new ip::tcp::socket(service));
-
-	sock->async_connect(ep, &Client::ConnectionHandler);
+	//sock->async_connect(ep, &Client::ConnectionHandler);
+	boost::system::error_code ec;
+	sock->connect(ep, ec);
+	if (ec)
+	{
+		cout << "error_code: " << ec << endl;
+	}
+	service.run();
 
 	boost::asio::socket_base::keep_alive keepAlive(true);
 	sock->set_option(keepAlive);
-
-	service.run();
 
 	char data[512];
 
@@ -71,18 +75,13 @@ void Client::ClientThread(string ipAddress)
 	}
 }
 
-void Client::ConnectionHandler(const boost::system::error_code & ec)
-{
-	cout << "error_code: " << ec << endl;
-}
-
 void Client::UploadFile(socket_ptr sock, vector<string> argv)
 {
-	const uint32_t bufferSize = 16 * 1024;
+	const uint32_t bufferSize = 16 * 1024 * 1024;
 	char* data;
-	data = new char[bufferSize];
+	data = new char[bufferSize + 1];
 
-	sock->read_some(buffer(data, bufferSize-1));
+	sock->read_some(buffer(data, bufferSize));
 
 	if (string(data) == "I'AM READY")
 	{
@@ -94,7 +93,7 @@ void Client::UploadFile(socket_ptr sock, vector<string> argv)
 	
 	// Send filename
 	strcpy_s(data, bufferSize, argv[2].c_str());
-	write(*sock, buffer(data, bufferSize-1));
+	write(*sock, buffer(data, bufferSize));
 
 	// Open the file
 	ifstream file;
@@ -105,36 +104,27 @@ void Client::UploadFile(socket_ptr sock, vector<string> argv)
 		// Record start time
 		auto start = std::chrono::high_resolution_clock::now();
 		uint32_t chunkCount = 0;
-		const uint32_t maxChunkSize = bufferSize-4;
+		const uint32_t maxChunkSize = bufferSize;
 
 		// Send file content
 		while (true)
 		{
-			file.read(data + 4, maxChunkSize);
+			file.read(data, maxChunkSize);
 	
 			uint32_t packetSize = file.gcount();
 
-			// Send packet size
-			*((uint32_t*)data) = packetSize;
-			//cout << "Send packet size: " << *((uint32_t*)data) << endl;
-
-
 			// Send packet
-			sock->write_some(buffer(data, packetSize + 4));
-			sock->read_some(buffer(data, packetSize));
+			size_t sendedSize = sock->write_some(buffer(data, packetSize));
 
 			if (packetSize < maxChunkSize)
 			{
-				packetSize = 0;
-				*((uint32_t*)data) = packetSize;
-				sock->write_some(buffer(data, packetSize + 4));
-				sock->read_some(buffer(data, packetSize));
+				sock->write_some(buffer("THIS IS THE END", 0));
 				break;
 			}
 
-
 			chunkCount++;
 		}
+
 		// Record end time
 		auto finish = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> elapsed = finish - start;
