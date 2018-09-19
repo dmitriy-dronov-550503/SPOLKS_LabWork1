@@ -164,8 +164,8 @@ void Server::CmdReceiveFile(socket_ptr sock, vector<string> cmds)
 	ofstream myfile;
 	myfile.open(data, ios::out | ios::binary);
 	
-	sock->read_some(buffer(data, sizeof(uint32_t)));
-	uint32_t fileSize = *((uint32_t*)data);
+	int64_t fileSize;
+	sock->read_some(buffer(&fileSize, sizeof(int64_t)));
 	cout << "Filesize = " << fileSize << endl;
 
 	if (myfile.is_open())
@@ -174,7 +174,7 @@ void Server::CmdReceiveFile(socket_ptr sock, vector<string> cmds)
 		while (true)
 		{
 			// Get packet
-			uint32_t readedSize = sock->read_some(buffer(data, bufferSize));
+			int64_t readedSize = sock->read_some(buffer(data, bufferSize));
 
 			fileSize -= readedSize;
 
@@ -182,7 +182,7 @@ void Server::CmdReceiveFile(socket_ptr sock, vector<string> cmds)
 
 			myfile.write(data, readedSize);
 
-			if (fileSize == (uint32_t)0)
+			if (fileSize == (int64_t)0)
 			{
 				break;
 			}
@@ -232,8 +232,7 @@ void Server::CmdSendFile(socket_ptr sock, vector<string> argv)
 
 		ifstream fileEnd(argv[1], std::ifstream::ate | std::ifstream::binary);
 		int64_t fileSize = fileEnd.tellg();
-		*((int64_t*)data) = fileSize;
-		sock->write_some(buffer(data, sizeof(int64_t)));
+		sock->write_some(buffer(&fileSize, sizeof(int64_t)));
 		cout << "Filesize = " << fileSize << endl;
 
 		// Send file content

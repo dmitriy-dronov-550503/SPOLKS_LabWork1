@@ -112,8 +112,7 @@ void Client::UploadFile(socket_ptr sock, vector<string> argv)
 
 		ifstream fileEnd(argv[1], std::ifstream::ate | std::ifstream::binary);
 		int64_t fileSize = fileEnd.tellg();
-		*((int64_t*)data) = fileSize;
-		sock->write_some(buffer(data, sizeof(int64_t)));
+		sock->write_some(buffer(&fileSize, sizeof(int64_t)));
 		cout << "Filesize = " << fileSize << endl;
 
 		// Send file content
@@ -164,8 +163,8 @@ void Client::DownloadFile(socket_ptr sock, vector<string> argv)
 	ofstream myfile;
 	myfile.open(argv[2], ios::out | ios::binary);
 
-	sock->read_some(buffer(data, sizeof(int64_t)));
-	int64_t fileSize = *((int64_t*)data);
+	int64_t fileSize;
+	sock->read_some(buffer(&fileSize, sizeof(int64_t)));
 	cout << "Filesize = " << fileSize << endl;
 
 	if (myfile.is_open())
