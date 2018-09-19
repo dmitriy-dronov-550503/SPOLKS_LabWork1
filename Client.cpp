@@ -39,7 +39,8 @@ void Client::ClientThread(string ipAddress)
 	boost::asio::socket_base::keep_alive keepAlive(true);
 	sock->set_option(keepAlive);
 
-	char data[512];
+	const uint32_t bufferSize = 512;
+	char data[bufferSize];
 
 	try
 	{
@@ -53,7 +54,7 @@ void Client::ClientThread(string ipAddress)
 			{
 				vector<string> cmds = CommandCenter::Parse(str);
 
-				strcpy_s(data, str.c_str());
+				strcpy_s(data, bufferSize, str.c_str());
 
 				sock->write_some(buffer(data));
 
@@ -110,9 +111,9 @@ void Client::UploadFile(socket_ptr sock, vector<string> argv)
 		const uint32_t maxChunkSize = bufferSize;
 
 		ifstream fileEnd(argv[1], std::ifstream::ate | std::ifstream::binary);
-		std::ifstream::pos_type fileSize = fileEnd.tellg();
-		*((std::ifstream::pos_type*)data) = fileSize;
-		sock->write_some(buffer(data, sizeof(std::ifstream::pos_type)));
+		int64_t fileSize = fileEnd.tellg();
+		*((int64_t*)data) = fileSize;
+		sock->write_some(buffer(data, sizeof(int64_t)));
 		cout << "Filesize = " << fileSize << endl;
 
 		// Send file content
@@ -163,8 +164,8 @@ void Client::DownloadFile(socket_ptr sock, vector<string> argv)
 	ofstream myfile;
 	myfile.open(argv[2], ios::out | ios::binary);
 
-	sock->read_some(buffer(data, sizeof(std::ifstream::pos_type)));
-	std::ifstream::pos_type fileSize = *((std::ifstream::pos_type*)data);
+	sock->read_some(buffer(data, sizeof(int64_t)));
+	int64_t fileSize = *((int64_t*)data);
 	cout << "Filesize = " << fileSize << endl;
 
 	if (myfile.is_open())
@@ -173,7 +174,7 @@ void Client::DownloadFile(socket_ptr sock, vector<string> argv)
 		while (true)
 		{
 			// Get packet
-			std::ifstream::pos_type readedSize = sock->read_some(buffer(data, bufferSize));
+			int64_t readedSize = sock->read_some(buffer(data, bufferSize));
 
 			fileSize -= readedSize;
 
@@ -181,7 +182,7 @@ void Client::DownloadFile(socket_ptr sock, vector<string> argv)
 
 			myfile.write(data, readedSize);
 
-			if (fileSize == (std::ifstream::pos_type)0)
+			if (fileSize == (int64_t)0)
 			{
 				break;
 			}
