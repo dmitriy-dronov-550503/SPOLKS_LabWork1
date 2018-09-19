@@ -162,8 +162,8 @@ void Server::CmdReceiveFile(socket_ptr sock, vector<string> cmds)
 	ofstream myfile;
 	myfile.open(data, ios::out | ios::binary);
 	
-	int64_t fileSize;
-	sock->read_some(buffer(&fileSize, sizeof(int64_t)));
+	sock->read_some(buffer(data, bufferSize));
+	int64_t fileSize = std::stoi(data);
 	cout << "Filesize = " << fileSize << endl;
 
 	if (myfile.is_open())
@@ -229,8 +229,9 @@ void Server::CmdSendFile(socket_ptr sock, vector<string> argv)
 		const uint32_t maxChunkSize = bufferSize;
 
 		ifstream fileEnd(argv[1], std::ifstream::ate | std::ifstream::binary);
-		int64_t fileSize = fileEnd.tellg();
-		sock->write_some(buffer(&fileSize, sizeof(int64_t)));
+		string fileSize = std::to_string(fileEnd.tellg());
+		strcpy_s(data, bufferSize, fileSize.c_str());
+		sock->write_some(buffer(data, bufferSize));
 		cout << "Filesize = " << fileSize << endl;
 
 		// Send file content
