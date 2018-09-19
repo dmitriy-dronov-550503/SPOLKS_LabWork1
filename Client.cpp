@@ -110,9 +110,8 @@ void Client::UploadFile(socket_ptr sock, vector<string> argv)
 		const uint32_t maxChunkSize = bufferSize;
 
 		ifstream fileEnd(argv[1], std::ifstream::ate | std::ifstream::binary);
-		std::ifstream::pos_type fileSize = fileEnd.tellg();
-		*((std::ifstream::pos_type*)data) = fileSize;
-		sock->write_some(buffer(data, sizeof(std::ifstream::pos_type)));
+		int64_t fileSize = fileEnd.tellg();
+		sock->write_some(buffer(&fileSize, sizeof(int64_t)));
 		cout << "Filesize = " << fileSize << endl;
 
 		// Send file content
@@ -163,8 +162,8 @@ void Client::DownloadFile(socket_ptr sock, vector<string> argv)
 	ofstream myfile;
 	myfile.open(argv[2], ios::out | ios::binary);
 
-	sock->read_some(buffer(data, sizeof(std::ifstream::pos_type)));
-	std::ifstream::pos_type fileSize = *((std::ifstream::pos_type*)data);
+	int64_t fileSize;
+	sock->read_some(buffer(&fileSize, sizeof(int64_t)));
 	cout << "Filesize = " << fileSize << endl;
 
 	if (myfile.is_open())
@@ -173,7 +172,7 @@ void Client::DownloadFile(socket_ptr sock, vector<string> argv)
 		while (true)
 		{
 			// Get packet
-			std::ifstream::pos_type readedSize = sock->read_some(buffer(data, bufferSize));
+			int64_t readedSize = sock->read_some(buffer(data, bufferSize));
 
 			fileSize -= readedSize;
 
@@ -181,7 +180,7 @@ void Client::DownloadFile(socket_ptr sock, vector<string> argv)
 
 			myfile.write(data, readedSize);
 
-			if (fileSize == (std::ifstream::pos_type)0)
+			if (fileSize == (int64_t)0)
 			{
 				break;
 			}
