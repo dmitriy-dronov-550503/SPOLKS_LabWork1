@@ -15,12 +15,12 @@ private:
 	thread* clientThread;
 	static void ClientThread(string ipAddress);
 	static void UploadFile(socket_ptr sock, vector<string> argv);
+	static void DownloadFile(socket_ptr sock, vector<string> argv);
 
 public:
 	Client(string ipAddress = "127.0.0.1");
 	~Client();
 
 	void Join();
-	static void ConnectionHandler(const boost::system::error_code & ec);
 };
 

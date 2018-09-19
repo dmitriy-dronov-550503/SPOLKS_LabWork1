@@ -60,6 +60,9 @@ void Client::ClientThread(string ipAddress)
 				if (cmds[0] == "upload") {
 					UploadFile(sock, cmds);
 				}
+				else if (cmds[0] == "download") {
+					DownloadFile(sock, cmds);
+				}
 
 				sock->read_some(buffer(data));
 				cout << data << endl;
@@ -93,7 +96,7 @@ void Client::UploadFile(socket_ptr sock, vector<string> argv)
 	
 	// Send filename
 	strcpy_s(data, bufferSize, argv[2].c_str());
-	write(*sock, buffer(data, bufferSize));
+	sock->write_some(buffer(data, bufferSize));
 
 	// Open the file
 	ifstream file;
@@ -106,6 +109,12 @@ void Client::UploadFile(socket_ptr sock, vector<string> argv)
 		uint32_t chunkCount = 0;
 		const uint32_t maxChunkSize = bufferSize;
 
+		ifstream fileEnd(argv[1], std::ifstream::ate | std::ifstream::binary);
+		std::ifstream::pos_type fileSize = fileEnd.tellg();
+		*((std::ifstream::pos_type*)data) = fileSize;
+		sock->write_some(buffer(data, sizeof(std::ifstream::pos_type)));
+		cout << "Filesize = " << fileSize << endl;
+
 		// Send file content
 		while (true)
 		{
@@ -116,9 +125,10 @@ void Client::UploadFile(socket_ptr sock, vector<string> argv)
 			// Send packet
 			size_t sendedSize = sock->write_some(buffer(data, packetSize));
 
+			//cout << "Sended " << sendedSize << '\r';
+
 			if (packetSize < maxChunkSize)
 			{
-				sock->write_some(buffer("THIS IS THE END", 0));
 				break;
 			}
 
@@ -133,6 +143,59 @@ void Client::UploadFile(socket_ptr sock, vector<string> argv)
 		file.close();
 	}
 	else cout << "Unable to open file" << endl;
+	//--------------------------------------------------------
+
+	delete data;
+}
+
+void Client::DownloadFile(socket_ptr sock, vector<string> argv)
+{
+	const uint32_t bufferSize = 64 * 1024 * 1024;
+	char* data;
+	data = new char[bufferSize + 1];
+
+	sock->write_some(buffer("I'AM READY"));
+
+	// Get file here
+	//--------------------------------------------------------
+
+	// Create the file
+	ofstream myfile;
+	myfile.open(argv[2], ios::out | ios::binary);
+
+	sock->read_some(buffer(data, sizeof(std::ifstream::pos_type)));
+	std::ifstream::pos_type fileSize = *((std::ifstream::pos_type*)data);
+	cout << "Filesize = " << fileSize << endl;
+
+	if (myfile.is_open())
+	{
+		// Get file content
+		while (true)
+		{
+			// Get packet
+			std::ifstream::pos_type readedSize = sock->read_some(buffer(data, bufferSize));
+
+			fileSize -= readedSize;
+
+			//cout << "Readed " << readedSize << " left " << fileSize << endl;
+
+			myfile.write(data, readedSize);
+
+			if (fileSize == (std::ifstream::pos_type)0)
+			{
+				break;
+			}
+		}
+
+		myfile.close();
+	}
+	else
+	{
+		cout << "Can't open file" << endl;
+	}
+
+	sock->write_some(buffer("File received"));
+
 	//--------------------------------------------------------
 
 	delete data;

@@ -110,6 +110,10 @@ void Server::ParseCommand(socket_ptr sock, string command)
 	{
 		CmdReceiveFile(sock, cmds);
 	}
+	else if (cmds[0] == "download")
+	{
+		CmdSendFile(sock, cmds);
+	}
 	else
 	{
 		write(*sock, buffer("Unrecognized command"));
@@ -141,7 +145,7 @@ void Server::CmdTime(socket_ptr sock, vector<string> cmds)
 
 void Server::CmdReceiveFile(socket_ptr sock, vector<string> cmds)
 {
-	const uint32_t bufferSize = 20 * 1024 * 1024;
+	const uint32_t bufferSize = 64 * 1024 * 1024;
 	char* data;
 	data = new char[bufferSize + 1];
 
@@ -158,20 +162,28 @@ void Server::CmdReceiveFile(socket_ptr sock, vector<string> cmds)
 	ofstream myfile;
 	myfile.open(data, ios::out | ios::binary);
 	
+	sock->read_some(buffer(data, sizeof(std::ifstream::pos_type)));
+	std::ifstream::pos_type fileSize = *((std::ifstream::pos_type*)data);
+	cout << "Filesize = " << fileSize << endl;
+
 	if (myfile.is_open())
 	{
 		// Get file content
 		while (true)
 		{
 			// Get packet
-			size_t readedSize = sock->read_some(buffer(data, bufferSize));
+			std::ifstream::pos_type readedSize = sock->read_some(buffer(data, bufferSize));
 
-			if(readedSize == 0)
+			fileSize -= readedSize;
+
+			//cout << "Readed " << readedSize << " left " << fileSize << '\r';
+
+			myfile.write(data, readedSize);
+
+			if (fileSize == (std::ifstream::pos_type)0)
 			{
 				break;
 			}
-
-			myfile.write(data, readedSize);
 		}
 
 		myfile.close();
@@ -185,6 +197,82 @@ void Server::CmdReceiveFile(socket_ptr sock, vector<string> cmds)
 	//--------------------------------------------------------
 	// Get file ended
 	write(*sock, buffer("\r\n"));
+
+	delete data;
+}
+
+void Server::CmdSendFile(socket_ptr sock, vector<string> argv)
+{
+	const uint32_t bufferSize = 16 * 1024 * 1024;
+	char* data;
+	data = new char[bufferSize + 1];
+
+	sock->read_some(buffer(data, bufferSize));
+
+	if (string(data) == "I'AM READY")
+	{
+		cout << "Client is ready to get file" << endl;
+	}
+
+	// Write file here
+	//--------------------------------------------------------
+
+	// Open the file
+	ifstream file;
+	file.open(argv[1], ios::in | ios::binary);
+
+	if (file.is_open())
+	{
+		// Record start time
+		auto start = std::chrono::high_resolution_clock::now();
+		uint32_t chunkCount = 0;
+		const uint32_t maxChunkSize = bufferSize;
+
+		ifstream fileEnd(argv[1], std::ifstream::ate | std::ifstream::binary);
+		std::ifstream::pos_type fileSize = fileEnd.tellg();
+		*((std::ifstream::pos_type*)data) = fileSize;
+		sock->write_some(buffer(data, sizeof(std::ifstream::pos_type)));
+		cout << "Filesize = " << fileSize << endl;
+
+		// Send file content
+		while (true)
+		{
+			file.read(data, maxChunkSize);
+
+			uint32_t packetSize = file.gcount();
+
+			// Send packet
+			size_t sendedSize = sock->write_some(buffer(data, packetSize));
+
+			//cout << "Sended " << sendedSize << endl;
+
+			if (packetSize < maxChunkSize)
+			{
+				break;
+			}
+
+			chunkCount++;
+		}
+
+		// Record end time
+		auto finish = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> elapsed = finish - start;
+		std::cout << "Average speed was: " << ((chunkCount * maxChunkSize) / elapsed.count()) / (1024 * 1024) << " MB/s\n";
+
+		file.close();
+	}
+	else cout << "Unable to open file" << endl;
+	//--------------------------------------------------------
+
+	sock->read_some(buffer(data, bufferSize));
+
+	if (string(data) == "File received")
+	{
+		cout << "File has been successfully sent" << endl;
+	}
+
+	// Get file ended
+	sock->write_some(buffer("\r\n"));
 
 	delete data;
 }

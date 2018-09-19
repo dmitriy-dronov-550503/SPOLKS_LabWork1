@@ -33,5 +33,6 @@ public:
 
 	static void CmdReceiveFile(socket_ptr sock, vector<string> cmds);
 
+	static void CmdSendFile(socket_ptr sock, vector<string> cmds);
 };
 
