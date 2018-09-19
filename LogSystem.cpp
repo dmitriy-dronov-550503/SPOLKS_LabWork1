@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "LogSystem.h"
 
 const string LogSystem::CurrentDateTime() {
@@ -12,12 +13,12 @@ const string LogSystem::CurrentDateTime() {
 
 void LogSystem::Log(string message)
 {
-	cout << "[" << CurrentDateTime() << "] : " << message << endl;
+	cout << "[" << CurrentDateTime().c_str() << "] : " << message.c_str() << endl;
 }
 
 ostream& LogSystem::operator<<(ostream& stream)
 {
-	stream << "[" << CurrentDateTime() << "] : ";
+	stream << "[" << CurrentDateTime().c_str() << "] : ";
 	return stream;
 }
 

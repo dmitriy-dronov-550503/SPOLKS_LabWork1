@@ -5,15 +5,10 @@
 
 string CommandCenter::ToLowerCase(string str)
 {
-	for (int i = 0; i < str.length(); i++)
-	{
-		if (str[i] > 'a')
-		{
-			str[i] = str[i] - ('a' - 'A');
-		}
-	}
+	string lowerStr = str;
+	std::transform(lowerStr.begin(), lowerStr.end(), lowerStr.begin(), ::tolower);
 
-	return str;
+	return lowerStr;
 }
 
 vector<string> CommandCenter::Parse(string command)
@@ -59,7 +54,7 @@ vector<string> CommandCenter::Parse(string command)
 		}
 	}
 
-	std::transform(cmds[0].begin(), cmds[0].end(), cmds[0].begin(), ::tolower);
+	cmds[0] = ToLowerCase(cmds[0]);
 
 	return cmds;
 }

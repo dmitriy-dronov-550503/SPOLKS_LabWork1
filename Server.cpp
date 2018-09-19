@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include <fstream>
+
 #include "Server.h"
 #include "LogSystem.h"
 
@@ -33,6 +35,7 @@ void Server::ServerThread()
 
 			acc.accept(*sock);
 
+			// Setup KEEP_ALIVE option
 			boost::asio::socket_base::keep_alive keepAlive(true);
 			sock->set_option(keepAlive);
 
@@ -84,7 +87,7 @@ void Server::ClientSession(socket_ptr sock, bool& isServerActive)
 			isServerActive = false;
 			break;
 		default:
-			LogSystem::Log("Exception: " + ec.message());
+			cout << LogSystem::CurrentDateTime() << "Exception caught in client session: " << ec.value() << " " << ec.category().name() << " " << ec.message();
 			break;
 		}
 
@@ -138,13 +141,57 @@ void Server::CmdTime(socket_ptr sock, vector<string> cmds)
 
 void Server::CmdReceiveFile(socket_ptr sock, vector<string> cmds)
 {
-	char data[512];
+	const uint32_t bufferSize = 20 * 1024;
+	char* data;
+	data = new char[bufferSize];
 
 	sock->write_some(buffer("I'AM READY"));
 
-	sock->read_some(buffer(data));
+	// Get file here
+	//--------------------------------------------------------
 
-	cout << "Get: " << data << endl;
+	// Get filename
+	sock->read_some(buffer(data, bufferSize));
+	cout << "Upload to the file " << data << endl;
 
+	// Create the file
+	ofstream myfile;
+	myfile.open(data, ios::out | ios::binary);
+	
+	if (myfile.is_open())
+	{
+		// Get file content
+		while (true)
+		{
+			// Get packet
+			sock->read_some(buffer(data, bufferSize));
+
+			uint32_t packetSize = *((uint32_t*)data);
+			char* payload = data + 4;
+
+			if (packetSize == 0)
+			{
+				break;
+			}
+
+			//cout << "Get packet with size " << packetSize << endl;
+
+			myfile.write(payload, packetSize);
+
+			sock->write_some(buffer("GOT"));
+		}
+
+		myfile.close();
+	}
+	else
+	{
+		cout << "Can't open file" << endl;
+	}
+	
+
+	//--------------------------------------------------------
+	// Get file ended
 	write(*sock, buffer("\r\n"));
+
+	delete data;
 }
