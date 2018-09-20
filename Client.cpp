@@ -5,6 +5,7 @@
 #include "Client.h"
 #include "CommandCenter.h"
 #include "LogSystem.h"
+#include "FileTransport.h"
 
 Client::Client(string ipAddress)
 {
@@ -59,10 +60,10 @@ void Client::ClientThread(string ipAddress)
 				sock->write_some(buffer(data));
 
 				if (cmds[0] == "upload") {
-					UploadFile(sock, cmds);
+					SendFile(sock, cmds);
 				}
 				else if (cmds[0] == "download") {
-					DownloadFile(sock, cmds);
+					ReceiveFile(sock, cmds);
 				}
 
 				sock->read_some(buffer(data));
@@ -79,125 +80,12 @@ void Client::ClientThread(string ipAddress)
 	}
 }
 
-void Client::UploadFile(socket_ptr sock, vector<string> argv)
+void Client::SendFile(socket_ptr sock, vector<string> argv)
 {
-	const uint32_t bufferSize = 16 * 1024 * 1024;
-	char* data;
-	data = new char[bufferSize + 1];
-
-	sock->read_some(buffer(data, bufferSize));
-
-	if (string(data) == "I'AM READY")
-	{
-		cout << "Server's ready to get file" << endl;
-	}
-
-	// Write file here
-	//--------------------------------------------------------
-	
-	// Send filename
-	strcpy_s(data, bufferSize, argv[2].c_str());
-	sock->write_some(buffer(data, bufferSize));
-
-	// Open the file
-	ifstream file;
-	file.open(argv[1], ios::in | ios::binary);
-
-	if (file.is_open())
-	{
-		// Record start time
-		auto start = std::chrono::high_resolution_clock::now();
-		uint32_t chunkCount = 0;
-		const uint32_t maxChunkSize = bufferSize;
-
-		ifstream fileEnd(argv[1], std::ifstream::ate | std::ifstream::binary);
-		string fileSize = std::to_string(fileEnd.tellg());
-		strcpy_s(data, bufferSize, fileSize.c_str());
-		sock->write_some(buffer(data, strlen(data) + 1));
-		cout << "Filesize = " << fileSize << endl;
-
-		// Send file content
-		while (true)
-		{
-			file.read(data, maxChunkSize);
-	
-			uint32_t packetSize = file.gcount();
-
-			// Send packet
-			size_t sendedSize = sock->write_some(buffer(data, packetSize));
-
-			//cout << "Sended " << sendedSize << '\r';
-
-			if (packetSize < maxChunkSize)
-			{
-				break;
-			}
-
-			chunkCount++;
-		}
-
-		// Record end time
-		auto finish = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double> elapsed = finish - start;
-		std::cout << "Average speed was: " << ((chunkCount * maxChunkSize) / elapsed.count()) / (1024 * 1024) << " MB/s\n";
-		
-		file.close();
-	}
-	else cout << "Unable to open file" << endl;
-	//--------------------------------------------------------
-
-	delete data;
+	FileTransport::Send(sock, argv[1], argv[2]);
 }
 
-void Client::DownloadFile(socket_ptr sock, vector<string> argv)
+void Client::ReceiveFile(socket_ptr sock, vector<string> argv)
 {
-	const uint32_t bufferSize = 64 * 1024 * 1024;
-	char* data;
-	data = new char[bufferSize + 1];
-
-	sock->write_some(buffer("I'AM READY"));
-
-	// Get file here
-	//--------------------------------------------------------
-
-	// Create the file
-	ofstream myfile;
-	myfile.open(argv[2], ios::out | ios::binary);
-
-	sock->read_some(buffer(data, bufferSize));
-	int64_t fileSize = std::stoi(data);
-	cout << "Filesize = " << fileSize << endl;
-
-	if (myfile.is_open())
-	{
-		// Get file content
-		while (true)
-		{
-			// Get packet
-			int64_t readedSize = sock->read_some(buffer(data, bufferSize));
-
-			fileSize -= readedSize;
-
-			//cout << "Readed " << readedSize << " left " << fileSize << endl;
-
-			myfile.write(data, readedSize);
-
-			if (fileSize == (int64_t)0)
-			{
-				break;
-			}
-		}
-
-		myfile.close();
-	}
-	else
-	{
-		cout << "Can't open file" << endl;
-	}
-
-	sock->write_some(buffer("File received"));
-
-	//--------------------------------------------------------
-
-	delete data;
+	FileTransport::Receive(sock, argv[1], argv[2]);
 }
