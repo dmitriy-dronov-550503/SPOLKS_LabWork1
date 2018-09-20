@@ -8,76 +8,98 @@ void FileTransport::Send(socket_ptr sock, string filenameFrom, string filenameTo
 	char* data;
 	data = new char[bufferSize + 1];
 
-	sock->read_some(buffer(data, bufferSize));
-
-	if (string(data) == "I'AM READY")
+	if (data != nullptr)
 	{
-		cout << "GOT READY" << endl;
-	}
+		// Open the file
+		ifstream file;
+		file.open(filenameFrom, ios::in | ios::binary);
 
-	// Write file here
-	//--------------------------------------------------------
+		// Wait receiver ready
+		sock->read_some(buffer(data, bufferSize));
 
-	// Open the file
-	ifstream file;
-	file.open(filenameFrom, ios::in | ios::binary);
-
-	if (file.is_open())
-	{
-		// Record start time
-		auto start = std::chrono::high_resolution_clock::now();
-		uint32_t chunkCount = 0;
-		const uint32_t maxChunkSize = bufferSize;
-
-		ifstream fileEnd(filenameFrom, std::ifstream::ate | std::ifstream::binary);
-		string fileSize = std::to_string(fileEnd.tellg());
-		cout << "String filesize = " << fileSize << endl;
-		int zeroPos = fileSize.size();
-		strcpy_s(data, bufferSize, fileSize.c_str());
-		data[zeroPos] = '\0';
-		sock->write_some(buffer(data, zeroPos+1));
-		cout << "Filesize = " << data << endl;
-
-		// Send file content
-		while (true)
+		if (string(data) == "I'AM READY")
 		{
-			file.read(data, maxChunkSize);
+			cout << "GOT READY" << endl;
 
-			uint32_t packetSize = file.gcount();
-
-			// Send packet
-			size_t sendedSize = sock->write_some(buffer(data, packetSize));
-
-			//cout << "Sended " << sendedSize << endl;
-
-			if (packetSize < maxChunkSize)
+			if (file.is_open())
 			{
-				break;
-			}
+				uint32_t chunkCount = 0;
+				const uint32_t maxChunkSize = bufferSize;
 
-			chunkCount++;
+				// Send filesize
+				ifstream fileEnd(filenameFrom, std::ifstream::ate | std::ifstream::binary);
+				int64_t fileSize = fileEnd.tellg();
+				string fileSizeStr = std::to_string(fileSize);
+				int zeroPos = fileSizeStr.size();
+				strcpy_s(data, bufferSize, fileSizeStr.c_str());
+				data[zeroPos] = '\0';
+				sock->write_some(buffer(data, zeroPos + 1));
+				cout << "Filesize = " << data << endl;
+
+				if (fileSize != 0)
+				{
+					// Record start time
+					auto start = std::chrono::high_resolution_clock::now();
+
+					// Send file content
+					while (true)
+					{
+						file.read(data, maxChunkSize);
+
+						uint32_t packetSize = file.gcount();
+
+						// Send packet
+						size_t sendedSize = sock->write_some(buffer(data, packetSize));
+
+						//cout << "Sended " << sendedSize << endl;
+
+						if (packetSize < maxChunkSize)
+						{
+							break;
+						}
+
+						chunkCount++;
+					}
+
+					// Record end time
+					auto finish = std::chrono::high_resolution_clock::now();
+					std::chrono::duration<double> elapsed = finish - start;
+					std::cout << "Average speed was: " << ((chunkCount * maxChunkSize) / elapsed.count()) / (1024 * 1024) << " MB/s\n";
+
+					file.close();
+
+					sock->read_some(buffer(data, bufferSize));
+
+					if (string(data) == "File received")
+					{
+						cout << "File has been successfully sent" << endl;
+					}
+				}
+				else
+				{
+					cout << "Empty file, nothing to send" << endl;
+				}
+			}
+			else
+			{
+				data[0] = '0';
+				data[1] = '\0';
+				sock->write_some(buffer(data, 2));
+				cout << "Filesize = " << data << endl;
+				cout << "Can't open file" << endl;
+			}
+		}
+		else
+		{
+			cout << "Reciever isn't ready" << endl;
 		}
 
-		// Record end time
-		auto finish = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double> elapsed = finish - start;
-		std::cout << "Average speed was: " << ((chunkCount * maxChunkSize) / elapsed.count()) / (1024 * 1024) << " MB/s\n";
-
-		file.close();
+		delete data;
 	}
-	else cout << "Unable to open file" << endl;
-	//--------------------------------------------------------
-
-	sock->read_some(buffer(data, bufferSize));
-
-	if (string(data) == "File received")
+	else
 	{
-		cout << "File has been successfully sent" << endl;
+		cout << "Can't allocate send buffer" << endl;
 	}
-
-	// Get file ended
-
-	delete data;
 }
 
 void FileTransport::Receive(socket_ptr sock, string filenameFrom, string filenameTo)
@@ -86,53 +108,58 @@ void FileTransport::Receive(socket_ptr sock, string filenameFrom, string filenam
 	char* data;
 	data = new char[bufferSize + 1];
 
-	sock->write_some(buffer("I'AM READY"));
-
-	// Get file here
-	//--------------------------------------------------------
-
-	// Create the file
-	ofstream myfile;
-	myfile.open(filenameTo, ios::out | ios::binary);
-
-	sock->read_some(buffer(data, bufferSize));
-	cout << "Receive filisize = " << data << endl;
-	int64_t fileSize = std::stoi(data);
-	cout << "Filesize = " << fileSize << endl;
-
-	if (myfile.is_open())
+	if (data != nullptr)
 	{
-		// Get file content
-		while (true)
+		// Create the file
+		ofstream myfile;
+		myfile.open(filenameTo, ios::out | ios::binary);
+
+		if (myfile.is_open())
 		{
-			// Get packet
-			int64_t readedSize = sock->read_some(buffer(data, bufferSize));
+			sock->write_some(buffer("I'AM READY"));
 
-			fileSize -= readedSize;
+			// Get filesize
+			//--------------------------------------------------------
+			sock->read_some(buffer(data, bufferSize));
+			int64_t fileSize = std::stoi(data);
+			cout << "Filesize = " << fileSize << endl;
 
-			//cout << "Readed " << readedSize << " left " << fileSize << '\r';
-
-			myfile.write(data, readedSize);
-
-			if (fileSize == (int64_t)0)
+			if (fileSize == 0)
 			{
-				break;
+				cout << "Error cause on sent size" << endl;
+			}
+			else
+			{
+				// Get file content
+				while (fileSize != 0)
+				{
+					// Get packet
+					int64_t readedSize = sock->read_some(buffer(data, bufferSize));
+
+					fileSize -= readedSize;
+
+					//cout << "Readed " << readedSize << " left " << fileSize << '\r';
+
+					myfile.write(data, readedSize);
+				}
+
+				myfile.close();
+
+				sock->write_some(buffer("File received"));
+
+				cout << "File has been successfully received" << endl;
 			}
 		}
+		else
+		{
+			sock->write_some(buffer("I'AM NOT READY"));
+			cout << "Can't open file" << endl;
+		}
 
-		myfile.close();
+		delete data;
 	}
 	else
 	{
-		cout << "Can't open file" << endl;
+		cout << "Can't allocate receive buffer" << endl;
 	}
-
-	cout << "File has been successfully received" << endl;
-	
-	sock->write_some(buffer("File received"));
-
-	//--------------------------------------------------------
-	// Get file ended
-
-	delete data;
 }
