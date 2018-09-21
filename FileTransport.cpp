@@ -138,7 +138,7 @@ void FileTransport::Receive(socket_ptr sock, string filenameFrom, string filenam
 
 					fileSize -= readedSize;
 
-					//cout << "Readed " << readedSize << " left " << fileSize << '\r';
+					//cout << "Readed " << readedSize << " left " << fileSize << endl;
 
 					myfile.write(data, readedSize);
 				}

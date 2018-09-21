@@ -31,14 +31,17 @@ void Client::ClientThread(string ipAddress)
 	//sock->async_connect(ep, &Client::ConnectionHandler);
 	boost::system::error_code ec;
 	sock->connect(ep, ec);
+
 	if (ec)
 	{
 		cout << "error_code: " << ec << endl;
 	}
-	service.run();
 
+	// Setup KEEP_ALIVE option
 	boost::asio::socket_base::keep_alive keepAlive(true);
 	sock->set_option(keepAlive);
+
+	service.run();
 
 	char data[512];
 
