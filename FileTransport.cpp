@@ -2,11 +2,23 @@
 #include "FileTransport.h"
 #include <fstream>
 
+int64_t FileTransport::WriteFileSize(char* data, string fileName)
+{
+	ifstream file(fileName, std::ifstream::ate | std::ifstream::binary);
+	int64_t fileSize = file.tellg();
+	file.close();
+	string fileSizeStr = std::to_string(fileSize);
+	int zeroPos = fileSizeStr.size();
+	strcpy_s(data, sendBufferSize, fileSizeStr.c_str());
+	data[zeroPos] = '\0';
+	return fileSize;
+}
+
 void FileTransport::Send(socket_ptr sock, string filenameFrom, string filenameTo)
 {
-	const uint32_t bufferSize = 16 * 1024 * 1024;
+	
 	char* data;
-	data = new char[bufferSize + 1];
+	data = new char[sendBufferSize + 1];
 
 	if (data != nullptr)
 	{
@@ -15,7 +27,7 @@ void FileTransport::Send(socket_ptr sock, string filenameFrom, string filenameTo
 		file.open(filenameFrom, ios::in | ios::binary);
 
 		// Wait receiver ready
-		sock->read_some(buffer(data, bufferSize));
+		sock->read_some(buffer(data, sendBufferSize));
 
 		if (string(data) == "I'AM READY")
 		{
@@ -24,16 +36,16 @@ void FileTransport::Send(socket_ptr sock, string filenameFrom, string filenameTo
 			if (file.is_open())
 			{
 				uint32_t chunkCount = 0;
-				const uint32_t maxChunkSize = bufferSize;
+				const uint32_t maxChunkSize = sendBufferSize;
 
 				// Send filesize
-				ifstream fileEnd(filenameFrom, std::ifstream::ate | std::ifstream::binary);
-				int64_t fileSize = fileEnd.tellg();
+				ifstream file2(filenameFrom, std::ifstream::ate | std::ifstream::binary);
+				int64_t fileSize = file2.tellg();
+				file2.close();
 				string fileSizeStr = std::to_string(fileSize);
 				int zeroPos = fileSizeStr.size();
-				strcpy_s(data, bufferSize, fileSizeStr.c_str());
+				strcpy_s(data, sendBufferSize, fileSizeStr.c_str());
 				data[zeroPos] = '\0';
-				sock->write_some(buffer(data, zeroPos + 1));
 				cout << "Filesize = " << data << endl;
 
 				if (fileSize != 0)
@@ -68,7 +80,7 @@ void FileTransport::Send(socket_ptr sock, string filenameFrom, string filenameTo
 
 					file.close();
 
-					sock->read_some(buffer(data, bufferSize));
+					sock->read_some(buffer(data, sendBufferSize));
 
 					if (string(data) == "File received")
 					{
@@ -104,9 +116,8 @@ void FileTransport::Send(socket_ptr sock, string filenameFrom, string filenameTo
 
 void FileTransport::Receive(socket_ptr sock, string filenameFrom, string filenameTo)
 {
-	const uint32_t bufferSize = 64 * 1024 * 1024;
 	char* data;
-	data = new char[bufferSize + 1];
+	data = new char[receiveBufferSize + 1];
 
 	if (data != nullptr)
 	{
@@ -120,7 +131,7 @@ void FileTransport::Receive(socket_ptr sock, string filenameFrom, string filenam
 
 			// Get filesize
 			//--------------------------------------------------------
-			sock->read_some(buffer(data, bufferSize));
+			sock->read_some(buffer(data, receiveBufferSize));
 			int64_t fileSize = std::stoi(data);
 			cout << "Filesize = " << fileSize << endl;
 
@@ -134,7 +145,7 @@ void FileTransport::Receive(socket_ptr sock, string filenameFrom, string filenam
 				while (fileSize != 0)
 				{
 					// Get packet
-					int64_t readedSize = sock->read_some(buffer(data, bufferSize));
+					int64_t readedSize = sock->read_some(buffer(data, receiveBufferSize));
 
 					fileSize -= readedSize;
 
