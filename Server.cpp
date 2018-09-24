@@ -4,10 +4,11 @@
 #include "Server.h"
 #include "LogSystem.h"
 #include "FileTransport.h"
+#include "SocketLow.h"
 
 Server::Server()
 {
-	serverThread = new thread(&Server::ServerThread);
+	serverThread = new thread(&Server::ServerThread, this);
 }
 
 Server::~Server()
@@ -25,7 +26,7 @@ void Server::ServerThread()
 	ip::tcp::endpoint ep(ip::tcp::v4(), 2001); // listen on 2001
 	ip::tcp::acceptor acc(service, ep);
 
-	bool isServerActive = true;
+	isServerActive = true;
 
 	try
 	{
@@ -36,11 +37,12 @@ void Server::ServerThread()
 
 			acc.accept(*sock);
 
-			// Setup KEEP_ALIVE option
+			// Set KEEP_ALIVE
 			boost::asio::socket_base::keep_alive keepAlive(true);
 			sock->set_option(keepAlive);
+			SocketLow::SetKeepAlive(sock);
 
-			LogSystem::Log("Accept client");
+			cout << log_time << "Accept client" << endl;
 
 			ClientSession(sock, isServerActive);
 		}
@@ -49,25 +51,33 @@ void Server::ServerThread()
 	catch (boost::system::system_error &e)
 	{
 		error_code ec = e.code();
-		cout << LogSystem::CurrentDateTime() << "Exception caught in initialization " << ec.value() << " " << ec.category().name() << " " << ec.message();
+		cout << log_time << " : Exception caught in initialization " << ec.value() << " " << ec.category().name() << " " << ec.message() << endl;
 	}
 }
-
-
 
 void Server::ClientSession(socket_ptr sock, bool& isServerActive)
 {
 	try
 	{
-		while (true)
+		while (isServerActive)
 		{
-			char data[512];
+			const uint32_t bufferSize = 512;
+			char data[bufferSize];
 
 			size_t len = sock->read_some(buffer(data));
 
 			if (len > 0)
 			{
-				LogSystem::Log("Got request > " + string(data));
+				cout << log_time << "Got request > " << string(data) << endl;
+
+				for (int i = 0; i < bufferSize-1; i++)
+				{
+					if (data[i] == '\r' || data[i] == '\n' || data[i] == 204)
+					{
+						data[i+1] = '\0';
+						break;
+					}
+				}
 
 				ParseCommand(sock, string(data));
 			}
@@ -84,11 +94,10 @@ void Server::ClientSession(socket_ptr sock, bool& isServerActive)
 		switch (ec.value())
 		{
 		case 2:
-			LogSystem::Log("Client closed connection");
-			isServerActive = false;
+			cout << log_time << "Client closed connection" << endl;
 			break;
 		default:
-			cout << LogSystem::CurrentDateTime() << "Exception caught in client session: " << ec.value() << " " << ec.category().name() << " " << ec.message();
+			cout << log_time << " : Exception caught in client session: " << ec.value() << " " << ec.category().name() << " " << ec.message() << endl;
 			break;
 		}
 
@@ -114,6 +123,11 @@ void Server::ParseCommand(socket_ptr sock, string command)
 	else if (cmds[0] == "download")
 	{
 		CmdSendFile(sock, cmds);
+	}
+	else if (cmds[0] == "halt")
+	{
+		isServerActive = false;
+		sock->write_some(buffer("Server closed connection"));
 	}
 	else
 	{
@@ -148,7 +162,8 @@ void Server::CmdTime(socket_ptr sock, vector<string> cmds)
 
 void Server::CmdSendFile(socket_ptr sock, vector<string> argv)
 {
-	FileTransport::Send(sock, argv[1], argv[2]);
+	FileTransport ft(sock);
+	ft.Send(argv[1], argv[2]);
 
 	// Get file ended
 	sock->write_some(buffer("\r\n"));
@@ -157,7 +172,8 @@ void Server::CmdSendFile(socket_ptr sock, vector<string> argv)
 
 void Server::CmdReceiveFile(socket_ptr sock, vector<string> argv)
 {
-	FileTransport::Receive(sock, argv[1], argv[2]);
+	FileTransport ft(sock);
+	ft.Receive(argv[1], argv[2]);
 
 	// Get file ended
 	sock->write_some(buffer("\r\n"));

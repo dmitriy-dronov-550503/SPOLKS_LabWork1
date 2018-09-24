@@ -1,6 +1,18 @@
 #include "stdafx.h"
 #include "LogSystem.h"
 
+ostream& log_time(ostream& os) 
+{
+	os << "[" << LogSystem::CurrentDateTime().c_str() << "] : ";
+	return os; 
+}
+
+void log_out(ostream& os)
+{
+	cout << "[" << LogSystem::CurrentDateTime().c_str() << "] : ";
+	//return os;
+}
+
 const string LogSystem::CurrentDateTime() {
 	time_t     now = time(0);
 	struct tm  tstruct;
