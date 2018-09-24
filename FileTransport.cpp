@@ -1,7 +1,5 @@
 #include "stdafx.h"
 #include "FileTransport.h"
-#include <fstream>
-
 #include "LogSystem.h"
 
 FileTransport::FileTransport(socket_ptr sock_in)
@@ -9,15 +7,15 @@ FileTransport::FileTransport(socket_ptr sock_in)
 	sock = sock_in;
 }
 
-void ShowSpeed(bool& isActive, time_point<steady_clock> start, uint32_t& chunkCount, uint32_t sendChunkSize)
+void ShowSpeed(bool& isActive, time_point<system_clock, nanoseconds> start, uint32_t& chunkCount, uint32_t chunkSize)
 {
 	while (isActive)
 	{
 		std::cout << '\r';
-		auto finish = std::chrono::high_resolution_clock::now();
+		time_point<system_clock, nanoseconds> finish = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> elapsed = finish - start;
-		std::cout << "Average speed: " << ((chunkCount * sendChunkSize) / elapsed.count()) / (1024 * 1024) << " MB/s";
-		std::this_thread::sleep_for(100ms);
+		std::cout << "Average speed: " << ((chunkCount * chunkSize) / elapsed.count()) / (1024 * 1024) << " MB/s";
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 }
 
@@ -56,7 +54,8 @@ void FileTransport::Send(string filenameFrom, string filenameTo)
 					chunkCount = 0;
 					isShowSpeed = true;
 					start = std::chrono::high_resolution_clock::now();
-					speedThread = new thread(ShowSpeed, std::ref(isShowSpeed), start, std::ref(chunkCount), sendChunkSize);
+					const uint32_t chunkSize = sendChunkSize;
+					//speedThread = new thread(ShowSpeed, std::ref(isShowSpeed), start, std::ref(chunkCount), chunkSize);
 
 					try
 					{
@@ -67,7 +66,11 @@ void FileTransport::Send(string filenameFrom, string filenameTo)
 
 							uint32_t packetSize = file.gcount();
 
+							cout << "Readed from file " << packetSize << " bytes" << endl;
+
 							size_t sendedSize = sock->write_some(buffer(data, packetSize));
+
+							cout << "Sended size = " << sendedSize << endl;
 
 							if (packetSize < sendChunkSize)
 							{
@@ -82,8 +85,8 @@ void FileTransport::Send(string filenameFrom, string filenameTo)
 						cout << endl  << "Transfer was interrupted" << endl;
 						file.close();
 						isShowSpeed = false;
-						speedThread->join();
-						delete speedThread;
+						//speedThread->join();
+						//delete speedThread;
 						delete data;
 					}
 
@@ -100,8 +103,8 @@ void FileTransport::Send(string filenameFrom, string filenameTo)
 					}
 
 
-					speedThread->join();
-					delete speedThread;
+					//speedThread->join();
+					//delete speedThread;
 				}
 				else
 				{
@@ -199,9 +202,11 @@ void FileTransport::Receive(string filenameFrom, string filenameTo)
 					while (fileSize != 0)
 					{
 						// Get packet
-						int64_t readedSize = sock->read_some(buffer(data, receiveBufferSize));
+						uint32_t readedSize = sock->receive(buffer(data, receiveBufferSize));
 
 						fileSize -= readedSize;
+
+						cout << "Readed packet size = " << readedSize << endl;
 
 						//cout << "Readed " << readedSize << " left " << fileSize << '\r';
 

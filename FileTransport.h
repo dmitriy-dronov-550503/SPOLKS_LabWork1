@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
+#include <thread>
 #include <boost/asio.hpp>
 #include <boost/thread.hpp>
 #include <boost/bind.hpp>
@@ -12,17 +13,19 @@ using namespace boost::asio;
 
 typedef boost::shared_ptr<ip::tcp::socket> socket_ptr;
 
+void ShowSpeed(bool& isActive, time_point<system_clock, nanoseconds> start, uint32_t& chunkCount, uint32_t chunkSize);
+
 class FileTransport
 {
 private:
-	constexpr static uint32_t sendBufferSize = 16 * 1024 * 1024;
-	constexpr static uint32_t sendChunkSize = 8 * 1024 * 1024;
-	constexpr static uint32_t receiveBufferSize = 64 * 1024 * 1024;
+	const static uint32_t sendBufferSize = 16 * 1024 * 1024;
+	const static uint32_t sendChunkSize = 8 * 1024 * 1024;
+	const static uint32_t receiveBufferSize = 64 * 1024 * 1024;
 	
 	socket_ptr sock;
 	char* data;
 	uint32_t chunkCount;
-	time_point<steady_clock> start;
+	time_point<system_clock, nanoseconds> start;
 	thread* speedThread;
 	bool isShowSpeed;
 	fstream file;

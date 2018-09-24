@@ -23,7 +23,7 @@ void Server::Join()
 void Server::ServerThread()
 {
 	io_service service;
-	ip::tcp::endpoint ep(ip::tcp::v4(), 2001); // listen on 2001
+	ip::tcp::endpoint ep(ip::tcp::v4(), 7850); // listen on 2001
 	ip::tcp::acceptor acc(service, ep);
 
 	isServerActive = true;
@@ -40,7 +40,7 @@ void Server::ServerThread()
 			// Set KEEP_ALIVE
 			boost::asio::socket_base::keep_alive keepAlive(true);
 			sock->set_option(keepAlive);
-			SocketLow::SetKeepAlive(sock);
+			//SocketLow::SetKeepAlive(sock);
 
 			cout << log_time << "Accept client" << endl;
 

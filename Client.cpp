@@ -27,7 +27,7 @@ void Client::ClientThread(string ipAddress)
 	cout << "GOT IP: " << ipAddress << endl;
 
 	io_service service;
-	ip::tcp::endpoint ep(ip::address::from_string(ipAddress.c_str()), 2001);
+	ip::tcp::endpoint ep(ip::address::from_string(ipAddress.c_str()), 7850);
 	socket_ptr sock(new ip::tcp::socket(service));
 	//sock->async_connect(ep, &Client::ConnectionHandler);
 	boost::system::error_code ec;
@@ -40,9 +40,10 @@ void Client::ClientThread(string ipAddress)
 		// Set KEEP_ALIVE
 		boost::asio::socket_base::keep_alive keepAlive(true);
 		sock->set_option(keepAlive);
-		SocketLow::SetKeepAlive(sock);
+		//SocketLow::SetKeepAlive(sock);
 
-		char data[512];
+		const uint32_t bufferSize = 512;
+		char data[bufferSize];
 
 		try
 		{
@@ -56,7 +57,7 @@ void Client::ClientThread(string ipAddress)
 				{
 					vector<string> cmds = CommandCenter::Parse(str);
 
-					strcpy_s(data, str.c_str());
+					strcpy_s(data, bufferSize, str.c_str());
 
 					sock->write_some(buffer(data));
 
