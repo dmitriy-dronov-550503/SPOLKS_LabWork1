@@ -2,20 +2,41 @@
 #include "FileTransport.h"
 #include <fstream>
 
-void FileTransport::Send(socket_ptr sock, string filenameFrom, string filenameTo)
+#include "LogSystem.h"
+
+FileTransport::FileTransport(socket_ptr sock_in)
 {
-	const uint32_t bufferSize = 16 * 1024 * 1024;
-	char* data;
-	data = new char[bufferSize + 1];
+	sock = sock_in;
+}
+
+void ShowSpeed(bool& isActive, time_point<steady_clock> start, uint32_t& chunkCount, uint32_t sendChunkSize)
+{
+	while (isActive)
+	{
+		std::cout << '\r';
+		auto finish = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> elapsed = finish - start;
+		std::cout << "Average speed: " << ((chunkCount * sendChunkSize) / elapsed.count()) / (1024 * 1024) << " MB/s";
+		std::this_thread::sleep_for(100ms);
+	}
+}
+
+void FileTransport::Send(string filenameFrom, string filenameTo)
+{
+	data = new char[sendBufferSize + 1];
 
 	if (data != nullptr)
 	{
+		sock->read_some(buffer(data, sendBufferSize));
+		int64_t downloadedSize = std::stoi(data);
+		cout << "Download stopped at = " << downloadedSize << endl;
+		sock->write_some(buffer("GOT FILESIZE"));
+
 		// Open the file
-		ifstream file;
 		file.open(filenameFrom, ios::in | ios::binary);
 
 		// Wait receiver ready
-		sock->read_some(buffer(data, bufferSize));
+		sock->read_some(buffer(data, sendBufferSize));
 
 		if (string(data) == "I'AM READY")
 		{
@@ -23,57 +44,64 @@ void FileTransport::Send(socket_ptr sock, string filenameFrom, string filenameTo
 
 			if (file.is_open())
 			{
-				uint32_t chunkCount = 0;
-				const uint32_t maxChunkSize = bufferSize;
-
+				// Seek
+				file.seekg(downloadedSize);
+				cout << "Start upload from " << downloadedSize << endl;
 				// Send filesize
-				ifstream fileEnd(filenameFrom, std::ifstream::ate | std::ifstream::binary);
-				int64_t fileSize = fileEnd.tellg();
-				string fileSizeStr = std::to_string(fileSize);
-				int zeroPos = fileSizeStr.size();
-				strcpy_s(data, bufferSize, fileSizeStr.c_str());
-				data[zeroPos] = '\0';
-				sock->write_some(buffer(data, zeroPos + 1));
+				int64_t fileSize = SendFileSize(filenameFrom);
 				cout << "Filesize = " << data << endl;
 
 				if (fileSize != 0)
 				{
-					// Record start time
-					auto start = std::chrono::high_resolution_clock::now();
+					chunkCount = 0;
+					isShowSpeed = true;
+					start = std::chrono::high_resolution_clock::now();
+					speedThread = new thread(ShowSpeed, std::ref(isShowSpeed), start, std::ref(chunkCount), sendChunkSize);
 
-					// Send file content
-					while (true)
+					try
 					{
-						file.read(data, maxChunkSize);
-
-						uint32_t packetSize = file.gcount();
-
-						// Send packet
-						size_t sendedSize = sock->write_some(buffer(data, packetSize));
-
-						//cout << "Sended " << sendedSize << endl;
-
-						if (packetSize < maxChunkSize)
+						// Send file content
+						while (true)
 						{
-							break;
-						}
+							file.read(data, sendChunkSize);
 
-						chunkCount++;
+							uint32_t packetSize = file.gcount();
+
+							size_t sendedSize = sock->write_some(buffer(data, packetSize));
+
+							if (packetSize < sendChunkSize)
+							{
+								break;
+							}
+
+							chunkCount++;
+						}
+					}
+					catch (...)
+					{
+						cout << endl  << "Transfer was interrupted" << endl;
+						file.close();
+						isShowSpeed = false;
+						speedThread->join();
+						delete speedThread;
+						delete data;
 					}
 
-					// Record end time
-					auto finish = std::chrono::high_resolution_clock::now();
-					std::chrono::duration<double> elapsed = finish - start;
-					std::cout << "Average speed was: " << ((chunkCount * maxChunkSize) / elapsed.count()) / (1024 * 1024) << " MB/s\n";
+					isShowSpeed = false;
+					cout << endl;
 
 					file.close();
 
-					sock->read_some(buffer(data, bufferSize));
+					sock->read_some(buffer(data, sendBufferSize));
 
 					if (string(data) == "File received")
 					{
 						cout << "File has been successfully sent" << endl;
 					}
+
+
+					speedThread->join();
+					delete speedThread;
 				}
 				else
 				{
@@ -102,27 +130,62 @@ void FileTransport::Send(socket_ptr sock, string filenameFrom, string filenameTo
 	}
 }
 
-void FileTransport::Receive(socket_ptr sock, string filenameFrom, string filenameTo)
+int64_t FileTransport::SendFileSize(string fileName)
 {
-	const uint32_t bufferSize = 64 * 1024 * 1024;
-	char* data;
-	data = new char[bufferSize + 1];
+	ifstream file(fileName, std::ifstream::ate | std::ifstream::binary);
+	int64_t fileSize = file.tellg();
+	file.close();
+	string fileSizeStr = std::to_string(fileSize);
+	int zeroPos = fileSizeStr.size();
+	strcpy_s(data, sendBufferSize, fileSizeStr.c_str());
+	data[zeroPos] = '\0';
+
+	sock->write_some(buffer(data, sendBufferSize));
+
+	return fileSize;
+}
+
+void FileTransport::Receive(string filenameFrom, string filenameTo)
+{
+	data = new char[receiveBufferSize + 1];
+
+	remove(filenameTo.c_str());
+
+	string remoteAddress = sock->remote_endpoint().address().to_string();
+	string fileDownload = filenameTo + remoteAddress + ".download";
 
 	if (data != nullptr)
 	{
-		// Create the file
-		ofstream myfile;
-		myfile.open(filenameTo, ios::out | ios::binary);
-
-		if (myfile.is_open())
+		uint32_t downloadedSize = 0;
+		ifstream fd(fileDownload);
+		if (fd.good())
 		{
+			downloadedSize = SendFileSize(fileDownload);
+			fd.close();
+		}
+		else
+		{
+			sock->write_some(buffer("0"));
+		}
+		sock->read_some(buffer(data, receiveBufferSize));
+		cout << data << endl;
+
+		// Create the file
+		file.open(fileDownload, ios::out | ios::app | ios::binary);
+
+		if (file.is_open())
+		{
+			file.seekp(downloadedSize);
+			cout  << "Start download from " << downloadedSize << endl;
 			sock->write_some(buffer("I'AM READY"));
 
 			// Get filesize
 			//--------------------------------------------------------
-			sock->read_some(buffer(data, bufferSize));
+			sock->read_some(buffer(data, receiveBufferSize));
 			int64_t fileSize = std::stoi(data);
 			cout << "Filesize = " << fileSize << endl;
+
+			fileSize -= downloadedSize;
 
 			if (fileSize == 0)
 			{
@@ -130,22 +193,41 @@ void FileTransport::Receive(socket_ptr sock, string filenameFrom, string filenam
 			}
 			else
 			{
-				// Get file content
-				while (fileSize != 0)
+				try
 				{
-					// Get packet
-					int64_t readedSize = sock->read_some(buffer(data, bufferSize));
+					// Get file content
+					while (fileSize != 0)
+					{
+						// Get packet
+						int64_t readedSize = sock->read_some(buffer(data, receiveBufferSize));
 
-					fileSize -= readedSize;
+						fileSize -= readedSize;
 
-					//cout << "Readed " << readedSize << " left " << fileSize << '\r';
+						//cout << "Readed " << readedSize << " left " << fileSize << '\r';
 
-					myfile.write(data, readedSize);
+						file.write(data, readedSize);
+					}
 				}
-
-				myfile.close();
+				catch (...)
+				{
+					cout << endl << "Transfer was interrupted" << endl;
+					file.close();
+					delete data;
+				}
+				
+				file.close();
 
 				sock->write_some(buffer("File received"));
+
+				int result = rename(fileDownload.c_str(), filenameTo.c_str());
+				if (!result)
+				{
+					cout << "Can't rename file" << endl;
+				}
+				else
+				{
+					cout << "File renamed from " << fileDownload.c_str() << " to " << filenameTo.c_str() << endl;
+				}
 
 				cout << "File has been successfully received" << endl;
 			}
