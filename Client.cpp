@@ -6,6 +6,7 @@
 #include "CommandCenter.h"
 #include "LogSystem.h"
 #include "FileTransport.h"
+#include "SocketLow.h"
 
 Client::Client(string ipAddress)
 {
@@ -32,62 +33,68 @@ void Client::ClientThread(string ipAddress)
 	boost::system::error_code ec;
 	sock->connect(ep, ec);
 
-	if (ec)
+	if (!ec)
 	{
-		cout << "error_code: " << ec << endl;
-	}
+		service.run();
 
-	// Setup KEEP_ALIVE option
-	boost::asio::socket_base::keep_alive keepAlive(true);
-	sock->set_option(keepAlive);
+		// Set KEEP_ALIVE
+		boost::asio::socket_base::keep_alive keepAlive(true);
+		sock->set_option(keepAlive);
+		SocketLow::SetKeepAlive(sock);
 
-	service.run();
+		char data[512];
 
-	char data[512];
 
-	try
-	{
-		while (true)
+		try
 		{
-			string str;
-			cout << endl << "> ";
-			getline(cin, str);
-
-			if (!str.empty())
+			while (true)
 			{
-				vector<string> cmds = CommandCenter::Parse(str);
+				string str;
+				cout << endl << "> ";
+				getline(cin, str);
 
-				strcpy_s(data, str.c_str());
+				if (!str.empty())
+				{
+					vector<string> cmds = CommandCenter::Parse(str);
 
-				sock->write_some(buffer(data));
+					strcpy_s(data, str.c_str());
 
-				if (cmds[0] == "upload") {
-					SendFile(sock, cmds);
+					sock->write_some(buffer(data));
+
+					if (cmds[0] == "upload") {
+						SendFile(sock, cmds);
+					}
+					else if (cmds[0] == "download") {
+						ReceiveFile(sock, cmds);
+					}
+
+					sock->read_some(buffer(data));
+					cout << data << endl;
 				}
-				else if (cmds[0] == "download") {
-					ReceiveFile(sock, cmds);
-				}
 
-				sock->read_some(buffer(data));
-				cout << data << endl;
+				if (str == "exit" || str == "halt") break;
 			}
-
-			if (str == "exit") break;
+		}
+		catch (boost::system::system_error &e)
+		{
+			error_code ec = e.code();
+			cout << LogSystem::CurrentDateTime() << "Exception caught: " << ec.value() << " " << ec.category().name() << " " << ec.message().c_str() << endl;
 		}
 	}
-	catch (boost::system::system_error &e)
+	else
 	{
-		error_code ec = e.code();
-		cout << LogSystem::CurrentDateTime() << "Exception caught: " << ec.value() << " " << ec.category().name() << " " << ec.message().c_str();
+		cout << "Can't connect. Error code " << ec << endl;
 	}
 }
 
 void Client::SendFile(socket_ptr sock, vector<string> argv)
 {
-	FileTransport::Send(sock, argv[1], argv[2]);
+	FileTransport ft(sock);
+	ft.Send(argv[1], argv[2]);
 }
 
 void Client::ReceiveFile(socket_ptr sock, vector<string> argv)
 {
-	FileTransport::Receive(sock, argv[1], argv[2]);
+	FileTransport ft(sock);
+	ft.Receive(argv[1], argv[2]);
 }

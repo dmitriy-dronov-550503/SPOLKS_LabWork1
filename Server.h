@@ -15,7 +15,8 @@ class Server
 {
 private:
 	thread* serverThread;
-	static void ServerThread();
+	void ServerThread();
+	bool isServerActive;
 
 public:
 	Server();
@@ -23,16 +24,16 @@ public:
 
 	void Join();
 
-	static void ClientSession(socket_ptr sock, bool& isServerActive);
+	void ClientSession(socket_ptr sock, bool& isServerActive);
 
-	static void ParseCommand(socket_ptr sock, string command);
+	void ParseCommand(socket_ptr sock, string command);
 
-	static void CmdEcho(socket_ptr sock, vector<string> cmds);
+	void CmdEcho(socket_ptr sock, vector<string> cmds);
 
-	static void CmdTime(socket_ptr sock, vector<string> cmds);
+	void CmdTime(socket_ptr sock, vector<string> cmds);
 
-	static void CmdReceiveFile(socket_ptr sock, vector<string> cmds);
+	void CmdReceiveFile(socket_ptr sock, vector<string> cmds);
 
-	static void CmdSendFile(socket_ptr sock, vector<string> cmds);
+	void CmdSendFile(socket_ptr sock, vector<string> cmds);
 };
 
