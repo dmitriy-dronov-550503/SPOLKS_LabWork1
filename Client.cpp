@@ -29,7 +29,6 @@ void Client::ClientThread(string ipAddress)
 	io_service service;
 	ip::tcp::endpoint ep(ip::address::from_string(ipAddress.c_str()), 7850);
 	socket_ptr sock(new ip::tcp::socket(service));
-	//sock->async_connect(ep, &Client::ConnectionHandler);
 	boost::system::error_code ec;
 	sock->connect(ep, ec);
 
@@ -38,9 +37,9 @@ void Client::ClientThread(string ipAddress)
 		service.run();
 
 		// Set KEEP_ALIVE
-		boost::asio::socket_base::keep_alive keepAlive(true);
-		sock->set_option(keepAlive);
-		sock->set_option(ip::tcp::no_delay(true));
+		//boost::asio::socket_base::keep_alive keepAlive(true);
+		//sock->set_option(keepAlive);
+		//sock->set_option(ip::tcp::no_delay(true));
 		//SocketLow::SetKeepAlive(sock);
 
 		const uint32_t bufferSize = 512;
@@ -90,12 +89,26 @@ void Client::ClientThread(string ipAddress)
 
 void Client::SendFile(socket_ptr sock, vector<string> argv)
 {
-	FileTransport ft(sock);
-	ft.Send(argv[1], argv[2]);
+	if (argv.size() == 2)
+	{
+		argv.push_back(argv[1]);
+	}
+	if (argv.size() >= 3)
+	{
+		FileTransport ft(sock);
+		ft.Send(argv[1], argv[2]);
+	}
 }
 
 void Client::ReceiveFile(socket_ptr sock, vector<string> argv)
 {
-	FileTransport ft(sock);
-	ft.Receive(argv[1], argv[2]);
+	if (argv.size() == 2)
+	{
+		argv.push_back(argv[1]);
+	}
+	if (argv.size() >= 3)
+	{
+		FileTransport ft(sock);
+		ft.Receive(argv[1], argv[2]);
+	}
 }

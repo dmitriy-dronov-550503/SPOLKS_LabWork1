@@ -18,9 +18,9 @@ void ShowSpeed(bool& isActive, time_point<system_clock, nanoseconds> start, uint
 class FileTransport
 {
 private:
-	constexpr static uint32_t sendBufferSize = 16 * 1024 * 1024;
-	constexpr static uint32_t sendChunkSize = 8 * 1024 * 1024;
-	constexpr static uint32_t receiveBufferSize = 64 * 1024 * 1024;
+	constexpr static uint32_t sendBufferSize = 16 * 1024;
+	constexpr static uint32_t sendChunkSize = 8 * 1024;
+	constexpr static uint32_t receiveBufferSize = 16 * 1024;
 	
 	socket_ptr sock;
 	char* data;

@@ -38,9 +38,9 @@ void Server::ServerThread()
 			acc.accept(*sock);
 
 			// Set KEEP_ALIVE
-			boost::asio::socket_base::keep_alive keepAlive(true);
-			sock->set_option(keepAlive);
-			sock->set_option(ip::tcp::no_delay(true));
+			//boost::asio::socket_base::keep_alive keepAlive(true);
+			//sock->set_option(keepAlive);
+			//sock->set_option(ip::tcp::no_delay(true));
 			//SocketLow::SetKeepAlive(sock);
 
 			cout << log_time << "Accept client" << endl;
@@ -163,8 +163,15 @@ void Server::CmdTime(socket_ptr sock, vector<string> cmds)
 
 void Server::CmdSendFile(socket_ptr sock, vector<string> argv)
 {
-	FileTransport ft(sock);
-	ft.Send(argv[1], argv[2]);
+	if (argv.size() == 2)
+	{
+		argv.push_back(argv[1]);
+	}
+	if (argv.size() >= 3)
+	{
+		FileTransport ft(sock);
+		ft.Send(argv[1], argv[2]);
+	}
 
 	// Get file ended
 	sock->write_some(buffer("\r\n"));
@@ -173,8 +180,15 @@ void Server::CmdSendFile(socket_ptr sock, vector<string> argv)
 
 void Server::CmdReceiveFile(socket_ptr sock, vector<string> argv)
 {
-	FileTransport ft(sock);
-	ft.Receive(argv[1], argv[2]);
+	if (argv.size() == 2)
+	{
+		argv.push_back(argv[1]);
+	}
+	if (argv.size() >= 3)
+	{
+		FileTransport ft(sock);
+		ft.Receive(argv[1], argv[2]);
+	}
 
 	// Get file ended
 	sock->write_some(buffer("\r\n"));

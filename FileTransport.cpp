@@ -45,6 +45,7 @@ void FileTransport::Send(string filenameFrom, string filenameTo)
 				// Seek
 				file.seekg(downloadedSize);
 				cout << "Start upload from " << downloadedSize << endl;
+
 				// Send filesize
 				int64_t fileSize = SendFileSize(filenameFrom);
 				cout << "Filesize = " << data << endl;
@@ -55,7 +56,7 @@ void FileTransport::Send(string filenameFrom, string filenameTo)
 					isShowSpeed = true;
 					start = std::chrono::high_resolution_clock::now();
 					const uint32_t chunkSize = sendChunkSize;
-					//speedThread = new thread(ShowSpeed, std::ref(isShowSpeed), start, std::ref(chunkCount), chunkSize);
+					speedThread = new thread(ShowSpeed, std::ref(isShowSpeed), start, std::ref(chunkCount), chunkSize);
 
 					try
 					{
@@ -66,11 +67,11 @@ void FileTransport::Send(string filenameFrom, string filenameTo)
 
 							uint32_t packetSize = file.gcount();
 
-							cout << "Readed from file " << packetSize << " bytes" << endl;
+							//cout << "Readed from file " << packetSize << " bytes" << endl;
 
 							size_t sendedSize = sock->write_some(buffer(data, packetSize));
 
-							cout << "Sended size = " << sendedSize << endl;
+							//cout << "Sended size = " << sendedSize << endl;
 
 							if (packetSize < sendChunkSize)
 							{
@@ -85,8 +86,8 @@ void FileTransport::Send(string filenameFrom, string filenameTo)
 						cout << endl  << "Transfer was interrupted" << endl;
 						file.close();
 						isShowSpeed = false;
-						//speedThread->join();
-						//delete speedThread;
+						speedThread->join();
+						delete speedThread;
 						delete data;
 					}
 
@@ -103,8 +104,8 @@ void FileTransport::Send(string filenameFrom, string filenameTo)
 					}
 
 
-					//speedThread->join();
-					//delete speedThread;
+					speedThread->join();
+					delete speedThread;
 				}
 				else
 				{
@@ -161,6 +162,7 @@ void FileTransport::Receive(string filenameFrom, string filenameTo)
 	{
 		uint32_t downloadedSize = 0;
 		ifstream fd(fileDownload);
+
 		if (fd.good())
 		{
 			downloadedSize = SendFileSize(fileDownload);
@@ -170,6 +172,7 @@ void FileTransport::Receive(string filenameFrom, string filenameTo)
 		{
 			sock->write_some(buffer("0"));
 		}
+
 		sock->read_some(buffer(data, receiveBufferSize));
 		cout << data << endl;
 
@@ -208,34 +211,16 @@ void FileTransport::Receive(string filenameFrom, string filenameTo)
 
 						fileSize -= readedSize;
 
-						cout << "Readed packet size = " << readedSize << endl;
+						//cout << "Readed packet size = " << readedSize << endl;
 
 						//cout << "Readed " << readedSize << " left " << fileSize << '\r';
 
-						for(uint32_t i = 0; i < readedSize + 3; i++)
-						{
-							if (data[i] == EOF)
-							{
-								cout << "FIND EOF CHAR AT " << i << "!" << endl;
-							}
-							if (data[i] == '\r')
-							{
-								cout << "FIND R CHAR AT " << i << "!"
-										<< endl;
-							}
-							if (data[i] == '\n')
-							{
-								cout << "FIND N CHAR AT " << i << "!"
-										<< endl;
-							}
-						}
-
-						if (readedSize > fileSizeConst)
+						/*if (readedSize > fileSizeConst)
 						{
 							readedSize = fileSizeConst;
 							file.write(data, readedSize);
 							break;
-						}
+						}*/
 
 						file.write(data, readedSize);
 					}
