@@ -198,17 +198,44 @@ void FileTransport::Receive(string filenameFrom, string filenameTo)
 			{
 				try
 				{
+					const int64_t fileSizeConst = fileSize;
+
 					// Get file content
 					while (fileSize != 0)
 					{
 						// Get packet
-						uint32_t readedSize = sock->receive(buffer(data, receiveBufferSize));
+						int64_t readedSize = sock->read_some(buffer(data, receiveBufferSize));
 
 						fileSize -= readedSize;
 
 						cout << "Readed packet size = " << readedSize << endl;
 
 						//cout << "Readed " << readedSize << " left " << fileSize << '\r';
+
+						for(uint32_t i = 0; i < readedSize + 3; i++)
+						{
+							if (data[i] == EOF)
+							{
+								cout << "FIND EOF CHAR AT " << i << "!" << endl;
+							}
+							if (data[i] == '\r')
+							{
+								cout << "FIND R CHAR AT " << i << "!"
+										<< endl;
+							}
+							if (data[i] == '\n')
+							{
+								cout << "FIND N CHAR AT " << i << "!"
+										<< endl;
+							}
+						}
+
+						if (readedSize > fileSizeConst)
+						{
+							readedSize = fileSizeConst;
+							file.write(data, readedSize);
+							break;
+						}
 
 						file.write(data, readedSize);
 					}
@@ -224,8 +251,9 @@ void FileTransport::Receive(string filenameFrom, string filenameTo)
 
 				sock->write_some(buffer("File received"));
 
-				int result = rename(fileDownload.c_str(), filenameTo.c_str());
-				if (!result)
+				int err = rename(fileDownload.c_str(), filenameTo.c_str());
+
+				if (err)
 				{
 					cout << "Can't rename file" << endl;
 				}
