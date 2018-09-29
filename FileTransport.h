@@ -13,7 +13,7 @@ using namespace boost::asio;
 
 typedef boost::shared_ptr<ip::tcp::socket> socket_ptr;
 
-void ShowSpeed(bool& isActive, time_point<system_clock, nanoseconds> start, uint32_t& chunkCount, uint32_t chunkSize);
+void ShowSpeed(bool& isActive, time_point<steady_clock, nanoseconds> start, int64_t& fileSizeLeft, const int64_t fileSize);
 
 class FileTransport
 {
@@ -24,8 +24,7 @@ private:
 	
 	socket_ptr sock;
 	char* data;
-	uint32_t chunkCount;
-	time_point<system_clock, nanoseconds> start;
+	time_point<steady_clock, nanoseconds> start;
 	thread* speedThread;
 	bool isShowSpeed;
 	fstream file;

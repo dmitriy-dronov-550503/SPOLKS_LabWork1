@@ -7,14 +7,35 @@ FileTransport::FileTransport(socket_ptr sock_in)
 	sock = sock_in;
 }
 
-void ShowSpeed(bool& isActive, time_point<system_clock, nanoseconds> start, uint32_t& chunkCount, uint32_t chunkSize)
+void ShowSpeed(bool& isActive, time_point<steady_clock, nanoseconds> start, int64_t& fileSizeLeft, const int64_t fileSize)
 {
 	while (isActive)
 	{
 		std::cout << '\r';
-		time_point<system_clock, nanoseconds> finish = std::chrono::high_resolution_clock::now();
+		time_point<steady_clock, nanoseconds> finish = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> elapsed = finish - start;
-		std::cout << "Average speed: " << ((chunkCount * chunkSize) / elapsed.count()) / (1024 * 1024) << " MB/s";
+		//std::cout << "Average speed: " << ((chunkCount * chunkSize) / elapsed.count()) / (1024 * 1024) << " MB/s";
+		
+		double percentReady = (1.0 - ((double)fileSizeLeft / fileSize));
+
+		cout << '[';
+		for (int i = 0; i < 60; i++)
+		{
+			if (i == 30)
+			{
+				cout << (uint32_t)(percentReady * 100) << " %";
+			}
+			if (i <= (percentReady * 60))
+			{
+				cout << '#';
+			}
+			else
+			{
+				cout << ' ';
+			}
+		}
+		cout << ']';
+
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 }
@@ -52,11 +73,10 @@ void FileTransport::Send(string filenameFrom, string filenameTo)
 
 				if (fileSize != 0)
 				{
-					chunkCount = 0;
 					isShowSpeed = true;
 					start = std::chrono::high_resolution_clock::now();
-					const uint32_t chunkSize = sendChunkSize;
-					speedThread = new thread(ShowSpeed, std::ref(isShowSpeed), start, std::ref(chunkCount), chunkSize);
+					int64_t fileSizeLeft = fileSize - downloadedSize;
+					speedThread = new thread(ShowSpeed, std::ref(isShowSpeed), start, std::ref(fileSizeLeft), fileSizeLeft);
 
 					try
 					{
@@ -71,14 +91,14 @@ void FileTransport::Send(string filenameFrom, string filenameTo)
 
 							size_t sendedSize = sock->write_some(buffer(data, packetSize));
 
+							fileSizeLeft -= sendedSize;
+
 							//cout << "Sended size = " << sendedSize << endl;
 
 							if (packetSize < sendChunkSize)
 							{
 								break;
 							}
-
-							chunkCount++;
 						}
 					}
 					catch (...)
@@ -100,7 +120,7 @@ void FileTransport::Send(string filenameFrom, string filenameTo)
 
 					if (string(data) == "File received")
 					{
-						cout << "File has been successfully sent" << endl;
+						cout << endl << "File has been successfully sent" << endl;
 					}
 
 
@@ -191,25 +211,27 @@ void FileTransport::Receive(string filenameFrom, string filenameTo)
 			int64_t fileSize = std::stoi(data);
 			cout << "Filesize = " << fileSize << endl;
 
-			fileSize -= downloadedSize;
+			int64_t fileSizeLeft = fileSize - downloadedSize;
 
-			if (fileSize == 0)
+			if (fileSizeLeft == 0)
 			{
 				cout << "Error cause on sent size" << endl;
 			}
 			else
 			{
+				isShowSpeed = true;
+				start = std::chrono::high_resolution_clock::now();
+				speedThread = new thread(ShowSpeed, std::ref(isShowSpeed), start, std::ref(fileSizeLeft), fileSizeLeft);
+
 				try
 				{
-					const int64_t fileSizeConst = fileSize;
-
 					// Get file content
-					while (fileSize != 0)
+					while (fileSizeLeft != 0)
 					{
 						// Get packet
 						int64_t readedSize = sock->read_some(buffer(data, receiveBufferSize));
 
-						fileSize -= readedSize;
+						fileSizeLeft -= readedSize;
 
 						//cout << "Readed packet size = " << readedSize << endl;
 
@@ -228,10 +250,15 @@ void FileTransport::Receive(string filenameFrom, string filenameTo)
 				catch (...)
 				{
 					cout << endl << "Transfer was interrupted" << endl;
+					isShowSpeed = false;
+					speedThread->join();
+					delete speedThread;
 					file.close();
 					delete data;
 				}
 				
+				isShowSpeed = false;
+
 				file.close();
 
 				sock->write_some(buffer("File received"));
@@ -240,12 +267,15 @@ void FileTransport::Receive(string filenameFrom, string filenameTo)
 
 				if (err)
 				{
-					cout << "Can't rename file" << endl;
+					cout << endl << "Can't rename file" << endl;
 				}
 				else
 				{
-					cout << "File renamed from " << fileDownload.c_str() << " to " << filenameTo.c_str() << endl;
+					cout << endl << "File renamed from " << fileDownload.c_str() << " to " << filenameTo.c_str() << endl;
 				}
+				
+				speedThread->join();
+				delete speedThread;
 
 				cout << "File has been successfully received" << endl;
 			}
