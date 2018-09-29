@@ -7,12 +7,12 @@ FileTransport::FileTransport(socket_ptr sock_in)
 	sock = sock_in;
 }
 
-void ShowSpeed(bool& isActive, time_point<system_clock, nanoseconds> start, uint32_t& chunkCount, uint32_t chunkSize)
+void ShowSpeed(bool& isActive, time_point<SYSTEM_CLOCK, nanoseconds> start, uint32_t& chunkCount, uint32_t chunkSize)
 {
 	while (isActive)
 	{
 		std::cout << '\r';
-		time_point<system_clock, nanoseconds> finish = std::chrono::high_resolution_clock::now();
+		time_point<SYSTEM_CLOCK, nanoseconds> finish = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> elapsed = finish - start;
 		std::cout << "Average speed: " << ((chunkCount * chunkSize) / elapsed.count()) / (1024 * 1024) << " MB/s";
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
