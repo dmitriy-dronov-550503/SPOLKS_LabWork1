@@ -37,10 +37,10 @@ void Client::ClientThread(string ipAddress)
 		service.run();
 
 		// Set KEEP_ALIVE
-		//boost::asio::socket_base::keep_alive keepAlive(true);
-		//sock->set_option(keepAlive);
-		//sock->set_option(ip::tcp::no_delay(true));
-		//SocketLow::SetKeepAlive(sock);
+		boost::asio::socket_base::keep_alive keepAlive(true);
+		sock->set_option(keepAlive);
+		sock->set_option(ip::tcp::no_delay(true));
+		SocketLow::SetKeepAlive(sock);
 
 		const uint32_t bufferSize = 512;
 		char data[bufferSize];

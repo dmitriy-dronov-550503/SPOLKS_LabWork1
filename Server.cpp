@@ -38,10 +38,10 @@ void Server::ServerThread()
 			acc.accept(*sock);
 
 			// Set KEEP_ALIVE
-			//boost::asio::socket_base::keep_alive keepAlive(true);
-			//sock->set_option(keepAlive);
-			//sock->set_option(ip::tcp::no_delay(true));
-			//SocketLow::SetKeepAlive(sock);
+			boost::asio::socket_base::keep_alive keepAlive(true);
+			sock->set_option(keepAlive);
+			sock->set_option(ip::tcp::no_delay(true));
+			SocketLow::SetKeepAlive(sock);
 
 			cout << log_time << "Accept client" << endl;
 
